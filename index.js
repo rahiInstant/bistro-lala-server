@@ -27,6 +27,15 @@ async function run() {
     await client.connect();
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
+    const foodCollection = client.db('bistroDB').collection('food')
+    app.get('/food', async(req, res) => {
+      const category = req.query.category 
+      const query ={category:category}
+      const result = await foodCollection.find(query).toArray()
+      // console.log(category)
+      res.send(result)
+    })
+
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
   } finally {
     // Ensures that the client will close when you finish/error
