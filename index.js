@@ -33,7 +33,7 @@ async function run() {
       const query ={category:category}
       const result = await foodCollection.find(query).toArray()
       // console.log(category)
-      res.send(result)
+      res.send(result) 
     })
 
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
