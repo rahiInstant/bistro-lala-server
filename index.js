@@ -16,7 +16,7 @@ const client = new MongoClient(uri, {
     version: ServerApiVersion.v1,
     strict: true,
     deprecationErrors: true,
-  },
+  },           
 });
 
 async function run() {
@@ -45,7 +45,7 @@ async function run() {
     app.get("/cart/:email", async (req, res) => {
       const userEmail = req.params.email
       // console.log(userEmail) 
-      const query = {email:userEmail}
+      const query = {email:userEmail} 
       const result = await orderCollection.find(query).toArray()
       // console.log(result)
       res.send(result);
