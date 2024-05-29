@@ -5,7 +5,9 @@ const app = express();
 const port = process.env.PORT || 8000;
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@food.qtnfwys.mongodb.net/?retryWrites=true&w=majority&appName=food`;
 
-app.use(cors());
+app.use(cors({
+  origin:['http://localhost:5173']
+}));
 app.use(express.json());
 
 const { MongoClient, ServerApiVersion } = require("mongodb");
@@ -16,21 +18,36 @@ const client = new MongoClient(uri, {
     version: ServerApiVersion.v1,
     strict: true,
     deprecationErrors: true,
-  },           
+  },
 });
 
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
+    // await client.db("admin").command({ ping: 1 });
     const bistroDB = client.db("bistroDB");
     const foodCollection = bistroDB.collection("food");
     const orderCollection = bistroDB.collection("order");
-    app.get("/food", async (req, res) => {
+    const userCollection = bistroDB.collection("users");
+    // This part for user data entry
+    app.post('/users', async(req, res) => {
+      // console.log(req.body)
+      const userData = req.body
+      console.log(req.body)
+      const filter = {email:userData.email}
+      const isUserExist = await userCollection.findOne(filter)
+      if(isUserExist) {
+        return res.send({message:'user already exist.', insertedId:null})
+      }
+      const result = await userCollection.insertOne(userData)
+      res.send(result)
+      // console.log(result)
+    }) 
+    app.get("/food", async (req, res) => {   
       const category = req.query.category;
-      const query = { category: category };
+      const query = { category: category };     
       const result = await foodCollection.find(query).toArray();
       // console.log(category)
       res.send(result);
@@ -42,12 +59,22 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/cart/:email", async (req, res) => {
-      const userEmail = req.params.email
-      // console.log(userEmail) 
-      const query = {email:userEmail} 
-      const result = await orderCollection.find(query).toArray()
+      
+
+    app.get("/cart", async (req, res) => {
+      const userEmail = req.query.userMail;
+      console.log(userEmail);
+      const query = { email: userEmail };
+      const result = await orderCollection.find(query).toArray();
       // console.log(result)
+      res.send(result); 
+    }); 
+
+    app.delete("/escape", async (req, res) => {
+      const query = req.query.name;
+      const filter = { name: query };
+      const result = await orderCollection.deleteOne(filter);
+      // console.log(query)
       res.send(result);
     });
 
