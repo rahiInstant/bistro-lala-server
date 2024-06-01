@@ -2,12 +2,14 @@ const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
 const app = express();
+const jwt = require("jsonwebtoken");
 const port = process.env.PORT || 8000;
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@food.qtnfwys.mongodb.net/?retryWrites=true&w=majority&appName=food`;
 
 app.use(
   cors({
     origin: ["http://localhost:5173"],
+    credentials: true,
   })
 );
 app.use(express.json());
@@ -23,6 +25,22 @@ const client = new MongoClient(uri, {
   },
 });
 
+const verifyToken = (req, res, next) => {
+  console.log(req.headers.authorization);
+  if (!req.headers.authorization) {
+    res.status(401).send({ message: "forbidden access" });
+  }
+  const token = req.headers.authorization.split(" ")[1];
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decode) => {
+    if (err) {
+      res.status(403).send({ message: "unauthorized" });
+    }
+    req.decoded = decode;
+    next();
+  });
+  // console.log(token)
+};
+
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
@@ -33,6 +51,16 @@ async function run() {
     const foodCollection = bistroDB.collection("food");
     const orderCollection = bistroDB.collection("order");
     const userCollection = bistroDB.collection("users");
+
+    // This part for jwt
+    app.post("/jwt", async (req, res) => {
+      const user = req.body;
+      const access_token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: "1h",
+      });
+      res.send({ access_token });
+    });
+
     // This part for user data entry
     app.post("/users", async (req, res) => {
       // console.log(req.body)
@@ -88,15 +116,15 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/all-user", async (req, res) => {
+    app.get("/all-user", verifyToken, async (req, res) => {
       const result = await userCollection.find().toArray();
       console.log(result);
       res.send(result);
     });
 
     app.delete("/remove-user", async (req, res) => {
-      const query = req.query.name;
-      const filter = { name: query };
+      const query = req.query.email;
+      const filter = { email: query };
       const result = await userCollection.deleteOne(filter);
       res.send(result);
     });
