@@ -5,9 +5,11 @@ const app = express();
 const port = process.env.PORT || 8000;
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@food.qtnfwys.mongodb.net/?retryWrites=true&w=majority&appName=food`;
 
-app.use(cors({
-  origin:['http://localhost:5173']
-}));
+app.use(
+  cors({
+    origin: ["http://localhost:5173"],
+  })
+);
 app.use(express.json());
 
 const { MongoClient, ServerApiVersion } = require("mongodb");
@@ -32,24 +34,34 @@ async function run() {
     const orderCollection = bistroDB.collection("order");
     const userCollection = bistroDB.collection("users");
     // This part for user data entry
-    app.post('/users', async(req, res) => {
+    app.post("/users", async (req, res) => {
       // console.log(req.body)
-      const userData = req.body
-      console.log(req.body)
-      const filter = {email:userData.email}
-      const isUserExist = await userCollection.findOne(filter)
-      if(isUserExist) {
-        return res.send({message:'user already exist.', insertedId:null})
+      const userData = req.body;
+      console.log(req.body);
+      const filter = { email: userData.email };
+      const isUserExist = await userCollection.findOne(filter);
+      if (isUserExist) {
+        return res.send({ message: "user already exist.", insertedId: null });
       }
-      const result = await userCollection.insertOne(userData)
-      res.send(result)
+      const result = await userCollection.insertOne(userData);
+      res.send(result);
       // console.log(result)
-    }) 
-    app.get("/food", async (req, res) => {   
+    });
+    app.get("/food", async (req, res) => {
       const category = req.query.category;
-      const query = { category: category };     
+      const query = { category: category };
       const result = await foodCollection.find(query).toArray();
       // console.log(category)
+      res.send(result);
+    });
+
+    app.get("/user-role", async (req, res) => {
+      const email = req.query.email;
+      const filter = { email: email };
+      const option = {
+        projection: { isAdmin: 1 },
+      };
+      const result = await userCollection.findOne(filter, option);
       res.send(result);
     });
 
@@ -59,22 +71,47 @@ async function run() {
       res.send(result);
     });
 
-      
-
     app.get("/cart", async (req, res) => {
       const userEmail = req.query.userMail;
       console.log(userEmail);
       const query = { email: userEmail };
       const result = await orderCollection.find(query).toArray();
       // console.log(result)
-      res.send(result); 
-    }); 
+      res.send(result);
+    });
 
     app.delete("/escape", async (req, res) => {
       const query = req.query.name;
       const filter = { name: query };
       const result = await orderCollection.deleteOne(filter);
       // console.log(query)
+      res.send(result);
+    });
+
+    app.get("/all-user", async (req, res) => {
+      const result = await userCollection.find().toArray();
+      console.log(result);
+      res.send(result);
+    });
+
+    app.delete("/remove-user", async (req, res) => {
+      const query = req.query.name;
+      const filter = { name: query };
+      const result = await userCollection.deleteOne(filter);
+      res.send(result);
+    });
+
+    app.patch("/give-power", async (req, res) => {
+      const email = req.query.email;
+      const query = { email: email };
+      const option = { upsert: true };
+      const updateDoc = {
+        $set: {
+          isAdmin: true,
+        },
+      };
+      // console.log(email)
+      const result = await userCollection.updateOne(query, updateDoc, option);
       res.send(result);
     });
 
