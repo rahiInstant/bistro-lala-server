@@ -26,14 +26,14 @@ const client = new MongoClient(uri, {
 });
 
 const verifyToken = (req, res, next) => {
-  console.log(req.headers.authorization);
+  // console.log(req.headers.authorization);
   if (!req.headers.authorization) {
-    res.status(401).send({ message: "forbidden access" });
+    return res.status(401).send({ message: "forbidden access" });
   }
   const token = req.headers.authorization.split(" ")[1];
   jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decode) => {
     if (err) {
-      res.status(403).send({ message: "unauthorized" });
+      return res.status(403).send({ message: "unauthorized" });
     }
     req.decoded = decode;
     next();
@@ -51,6 +51,27 @@ async function run() {
     const foodCollection = bistroDB.collection("food");
     const orderCollection = bistroDB.collection("order");
     const userCollection = bistroDB.collection("users");
+
+    const checkAdmin = async (email) => {
+      const filter = { email: email };
+      const option = {
+        projection: { _id: 0, isAdmin: 1 },
+      };
+      const result = await userCollection.findOne(filter, option);
+      return result;
+    };
+
+    const verifyAdmin = async (req, res, next) => {
+      const email = req.decoded.email;
+      const check = await checkAdmin(email);
+      // console.log(email);
+      // console.log("from verify admin", check, check.isAdmin);
+      if (!check?.isAdmin) {
+        // console.log("Thank You");
+        return res.status(403).send({ message: "forbidden access" });
+      }
+      next();
+    };
 
     // This part for jwt
     app.post("/jwt", async (req, res) => {
@@ -85,16 +106,12 @@ async function run() {
 
     app.get("/user-role", async (req, res) => {
       const email = req.query.email;
-      const filter = { email: email };
-      const option = {
-        projection: { isAdmin: 1 },
-      };
-      const result = await userCollection.findOne(filter, option);
-      res.send(result);
+      res.send(await checkAdmin(email));
     });
 
     app.post("/cart", async (req, res) => {
       const data = req.body;
+      console.log(data);
       const result = await orderCollection.insertOne(data);
       res.send(result);
     });
@@ -116,9 +133,9 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/all-user", verifyToken, async (req, res) => {
+    app.get("/all-user", verifyToken, verifyAdmin, async (req, res) => {
       const result = await userCollection.find().toArray();
-      console.log(result);
+      // console.log(result);
       res.send(result);
     });
 
@@ -129,8 +146,11 @@ async function run() {
       res.send(result);
     });
 
-    app.patch("/give-power", async (req, res) => {
+    app.patch("/give-power", verifyToken, async (req, res) => {
       const email = req.query.email;
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ message: "forbidden access" });
+      }
       const query = { email: email };
       const option = { upsert: true };
       const updateDoc = {
