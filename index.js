@@ -3,6 +3,8 @@ const cors = require("cors");
 require("dotenv").config();
 const app = express();
 const jwt = require("jsonwebtoken");
+const stripe = require("stripe")(process.env.SECRET_PAYMENT_KEY);
+// const imageKit = require('imagekit')
 const port = process.env.PORT || 8000;
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@food.qtnfwys.mongodb.net/?retryWrites=true&w=majority&appName=food`;
 
@@ -14,7 +16,20 @@ app.use(
 );
 app.use(express.json());
 
-const { MongoClient, ServerApiVersion } = require("mongodb");
+// const Imagekit = new imageKit({
+//   urlEndpoint: 'https://ik.imagekit.io/iamzjemjc',
+//   publicKey: 'public_O+FS02k/YEBU4yxJpLoVQ376sNI=',
+//   privateKey: 'private_qRCOj3ytBU6/iqpHowINq+AnZA0='
+// });
+
+// app.use(function(req, res, next) {
+//   res.header("Access-Control-Allow-Origin", "*");
+//   res.header("Access-Control-Allow-Headers",
+//     "Origin, X-Requested-With, Content-Type, Accept");
+//   next();
+// });
+
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
@@ -44,13 +59,14 @@ const verifyToken = (req, res, next) => {
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    // await client.connect();
+    await client.connect();
     // Send a ping to confirm a successful connection
-    // await client.db("admin").command({ ping: 1 });
+    await client.db("admin").command({ ping: 1 });
     const bistroDB = client.db("bistroDB");
     const foodCollection = bistroDB.collection("food");
     const orderCollection = bistroDB.collection("order");
     const userCollection = bistroDB.collection("users");
+    const paymentCollection = bistroDB.collection("payment");
 
     const checkAdmin = async (email) => {
       const filter = { email: email };
@@ -66,12 +82,21 @@ async function run() {
       const check = await checkAdmin(email);
       // console.log(email);
       // console.log("from verify admin", check, check.isAdmin);
-      if (!check?.isAdmin) {
-        // console.log("Thank You");
-        return res.status(403).send({ message: "forbidden access" });
+      if (check) {
+        if (!check?.isAdmin) {
+          // console.log("Thank You");
+          return res.status(403).send({ message: "forbidden access" });
+        }
+        next();
       }
-      next();
     };
+
+    // app.get('/upload-img', function (req, res) {
+    //   var result = Imagekit.getAuthenticationParameters();
+    //   // console.log(req.body)
+    //   console.log(result)
+    //   res.send(result);
+    // });
 
     // This part for jwt
     app.post("/jwt", async (req, res) => {
@@ -86,7 +111,7 @@ async function run() {
     app.post("/users", async (req, res) => {
       // console.log(req.body)
       const userData = req.body;
-      console.log(req.body);
+      // console.log(req.body);
       const filter = { email: userData.email };
       const isUserExist = await userCollection.findOne(filter);
       if (isUserExist) {
@@ -97,12 +122,32 @@ async function run() {
       // console.log(result)
     });
     app.get("/food", async (req, res) => {
-      const category = req.query.category;
-      const query = { category: category };
+      // const category = req.query.category;
+      const query = {};
+      // const option = { projection: { _id: 0 } };
       const result = await foodCollection.find(query).toArray();
       // console.log(category)
       res.send(result);
     });
+    app.post("/menu", verifyToken, verifyAdmin, async (req, res) => {
+      const data = req.body;
+      console.log(data);
+      const result = await foodCollection.insertOne(data);
+      res.send(result);
+    });
+
+    app.delete(
+      "/item-delete/:id",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const itemId = req.params.id;
+        console.log(itemId);
+        const filter = { _id: new ObjectId(itemId) };
+        const result = await foodCollection.deleteOne(filter);
+        res.send(result);
+      }
+    );
 
     app.get("/user-role", async (req, res) => {
       const email = req.query.email;
@@ -111,7 +156,6 @@ async function run() {
 
     app.post("/cart", async (req, res) => {
       const data = req.body;
-      console.log(data);
       const result = await orderCollection.insertOne(data);
       res.send(result);
     });
@@ -152,7 +196,7 @@ async function run() {
         return res.status(403).send({ message: "forbidden access" });
       }
       const query = { email: email };
-      const option = { upsert: true };
+      // const option = { upsert: true };
       const updateDoc = {
         $set: {
           isAdmin: true,
@@ -160,6 +204,24 @@ async function run() {
       };
       // console.log(email)
       const result = await userCollection.updateOne(query, updateDoc, option);
+      res.send(result);
+    });
+
+    app.post("/create-payment-intent", async (req, res) => {
+      const { price } = req.body;
+      const amount = parseInt(price * 100);
+      console.log(amount);
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: "usd",
+        payment_method_types: ["card"],
+      });
+      res.send({ clientSecret: paymentIntent.client_secret });
+    });
+
+    app.post("/payment", async (req, res) => {
+      const data = req.body;
+      const result = await paymentCollection.insertOne(data);
       res.send(result);
     });
 
