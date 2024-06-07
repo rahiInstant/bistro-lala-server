@@ -216,14 +216,26 @@ async function run() {
         currency: "usd",
         payment_method_types: ["card"],
       });
-      res.send({ clientSecret: paymentIntent.client_secret });
+      res.send({ clientSecret: paymentIntent.client_secret }); 
     });
-
+ 
     app.post("/payment", async (req, res) => {
       const data = req.body;
-      const result = await paymentCollection.insertOne(data);
-      res.send(result);
+      const savePaymentHistory = await paymentCollection.insertOne(data);   
+      const filter = {
+        _id: { $in: data?.cartID?.map((id) => new ObjectId(id)) },
+      };
+      const clearCartAfterPayment = await orderCollection.deleteMany(filter) 
+      console.log(data);
+      res.send({savePaymentHistory,clearCartAfterPayment});
     });
+    app.get('/payment-data/:email', async(req, res) => {
+      const userMail = req.params.email
+      const filter = {email:userMail}
+      const result = await paymentCollection.find(filter).toArray()
+      console.log('payment', result)
+      res.send(result)
+    })
 
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
