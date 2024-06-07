@@ -216,26 +216,75 @@ async function run() {
         currency: "usd",
         payment_method_types: ["card"],
       });
-      res.send({ clientSecret: paymentIntent.client_secret }); 
+      res.send({ clientSecret: paymentIntent.client_secret });
     });
- 
+
     app.post("/payment", async (req, res) => {
-      const data = req.body;
-      const savePaymentHistory = await paymentCollection.insertOne(data);   
-      const filter = {
-        _id: { $in: data?.cartID?.map((id) => new ObjectId(id)) },
+      const { email, price, date, cartID, menuID, transactionId, status } =
+        req.body;
+      const data = {
+        email,
+        price,
+        date,
+        transactionId,
+        status,
+        cartIDs: cartID.map((id) => new ObjectId(id)),
+        menuIDs: menuID.map((id) => new ObjectId(id)),
       };
-      const clearCartAfterPayment = await orderCollection.deleteMany(filter) 
+      const savePaymentHistory = await paymentCollection.insertOne(data);
+      const filter = {
+        _id: { $in: cartID?.map((id) => new ObjectId(id)) },
+      };
+      const clearCartAfterPayment = await orderCollection.deleteMany(filter);
       console.log(data);
-      res.send({savePaymentHistory,clearCartAfterPayment});
+      res.send({ savePaymentHistory, clearCartAfterPayment });
     });
-    app.get('/payment-data/:email', async(req, res) => {
-      const userMail = req.params.email
-      const filter = {email:userMail}
-      const result = await paymentCollection.find(filter).toArray()
-      console.log('payment', result)
-      res.send(result)
-    })
+    app.get("/payment-data/:email", async (req, res) => {
+      const userMail = req.params.email;
+      const filter = { email: userMail };
+      const result = await paymentCollection.find(filter).toArray();
+      console.log("payment", result);
+      res.send(result);
+    });
+    app.get("/admin-stats", async (req, res) => {
+      const user = await userCollection.estimatedDocumentCount();
+      const menuItem = await foodCollection.estimatedDocumentCount();
+      const order = await orderCollection.estimatedDocumentCount();
+      const payment = await paymentCollection
+        .aggregate([
+          {
+            $group: {
+              _id: null,
+              totalRevenue: { $sum: "$price" },
+            },
+          },
+        ])
+        .toArray();
+      // console.log(payment);
+      const totalRevenue = payment.length > 0 ? payment[0].totalRevenue : 0;
+      const salesData = await paymentCollection
+        .aggregate([
+          {
+            $unwind: "$menuID",
+          },
+          {
+            $lookup: {
+              from: "food",
+              localField: "menuID",
+              foreignField: "_id",
+              as: "menuItems",
+            },
+          },
+        ])
+        .toArray();
+      console.log(salesData); 
+      res.send({
+        user,
+        menuItem,
+        order,
+        totalRevenue,
+      });
+    });
 
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
@@ -254,3 +303,35 @@ app.get("/", (req, res) => {
 app.listen(port, () => {
   console.log(`server running port:${port}`);
 });
+
+// {
+//   $unwind: "$menuID",
+// },
+// {
+//   $lookup: {
+//     from: "food",
+//     localField: "menuID",
+//     foreignField: "ObjectId(_id)",
+//     as: "menuItems",
+//   },
+// },
+// {
+//   $unwind: "$menuItems",
+// },
+// {
+//   $group: {
+//     // _id: "$menuItems.category",
+//     _id:'$menuItems.category',
+//     totalSaleCount: { $sum: 1 },
+//     totalRevenue: { $sum: "$menuItems.price" },
+//   },
+
+// },
+// {
+//   $project: {
+//     category: '$_id',
+//     totalSaleCount: 1,
+//     totalRevenue: 1,
+//     _id: 0
+//   }
+// }
