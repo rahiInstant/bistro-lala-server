@@ -156,8 +156,24 @@ async function run() {
 
     app.post("/cart", async (req, res) => {
       const data = req.body;
+      const filter = { menuID: data.menuID };
+      const isItemExist = await orderCollection.findOne(filter);
+      if (!!isItemExist) {
+        return res.send({ insertedId: null });
+      }
       const result = await orderCollection.insertOne(data);
       res.send(result);
+    });
+    app.patch("/update-quantity", async (req, res) => {
+      const {value, id} = req.body;
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          quantity: value,
+        },
+      };
+      const result = await orderCollection.updateOne(filter,updateDoc)
+      res.send(result)
     });
 
     app.get("/cart", async (req, res) => {
@@ -246,7 +262,7 @@ async function run() {
       console.log("payment", result);
       res.send(result);
     });
-    app.get("/admin-stats", async (req, res) => {
+    app.get("/admin-stats",verifyToken, verifyAdmin, async (req, res) => {
       const user = await userCollection.estimatedDocumentCount();
       const menuItem = await foodCollection.estimatedDocumentCount();
       const order = await orderCollection.estimatedDocumentCount();
@@ -265,24 +281,43 @@ async function run() {
       const salesData = await paymentCollection
         .aggregate([
           {
-            $unwind: "$menuID",
+            $unwind: "$menuIDs",
           },
           {
             $lookup: {
               from: "food",
-              localField: "menuID",
+              localField: "menuIDs",
               foreignField: "_id",
               as: "menuItems",
             },
           },
+          {
+            $unwind: "$menuItems",
+          },
+          {
+            $group: {
+              _id: "$menuItems.category",
+              totalSalesCount: { $sum: 1 },
+              totalRevenue: { $sum: "$menuItems.price" },
+            },
+          },
+          {
+            $project: {
+              category: "$_id",
+              totalRevenue: 1,
+              totalSalesCount: 1,
+              _id: 0,
+            },
+          },
         ])
         .toArray();
-      console.log(salesData); 
+      // console.log("payment", salesData);
       res.send({
         user,
         menuItem,
         order,
         totalRevenue,
+        salesData,
       });
     });
 
