@@ -339,34 +339,3 @@ app.listen(port, () => {
   console.log(`server running port:${port}`);
 });
 
-// {
-//   $unwind: "$menuID",
-// },
-// {
-//   $lookup: {
-//     from: "food",
-//     localField: "menuID",
-//     foreignField: "ObjectId(_id)",
-//     as: "menuItems",
-//   },
-// },
-// {
-//   $unwind: "$menuItems",
-// },
-// {
-//   $group: {
-//     // _id: "$menuItems.category",
-//     _id:'$menuItems.category',
-//     totalSaleCount: { $sum: 1 },
-//     totalRevenue: { $sum: "$menuItems.price" },
-//   },
-
-// },
-// {
-//   $project: {
-//     category: '$_id',
-//     totalSaleCount: 1,
-//     totalRevenue: 1,
-//     _id: 0
-//   }
-// }
